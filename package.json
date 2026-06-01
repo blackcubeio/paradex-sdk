@@ -1,0 +1,67 @@
+{
+  "name": "@blackcube/paradex-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for the Paradex exchange (perpetuals DEX on a Starknet appchain): REST v1, WebSocket JSON-RPC, SNIP-12 Stark signing + JWT auth",
+  "license": "BSD-3-Clause",
+  "author": "Blackcube (https://blackcube.io)",
+  "homepage": "https://github.com/blackcubeio/paradex-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/blackcubeio/paradex-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/blackcubeio/paradex-sdk/issues"
+  },
+  "keywords": [
+    "paradex",
+    "starknet",
+    "perp",
+    "perpetuals",
+    "dex",
+    "trading",
+    "exchange",
+    "sdk",
+    "snip12",
+    "stark",
+    "websocket"
+  ],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "sideEffects": false,
+  "files": ["dist", "doc", "README.md", "LICENSE"],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "prepublishOnly": "pnpm run lint && pnpm run typecheck && pnpm run build"
+  },
+  "dependencies": {
+    "@noble/curves": "^1.7.0",
+    "@noble/hashes": "^1.6.1",
+    "starknet": "^6.11.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.10.2",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
