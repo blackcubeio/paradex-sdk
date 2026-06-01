@@ -1,16 +1,16 @@
-# Surface commune (unifiée) — partagée par les SDK Blackcube
+# Surface commune (unifiée) — partagée par les 4 SDK Blackcube
 
 Cette page décrit le **contrat unifié** partagé par `@blackcube/aster-sdk`, `@blackcube/hyperliquid-sdk`,
-`@blackcube/pacifica-sdk`, `@blackcube/lighter-sdk` et `@blackcube/paradex-sdk`. L'**invariant** : mêmes
-**scopes**, mêmes **noms**, même **vocabulaire** et mêmes **formes de types** (`…Params` en entrée, types de
-sortie communs) d'un SDK à l'autre. Deux natures de **divergence assumée par conception**, toujours
-**annotées au cas par cas** :
+`@blackcube/pacifica-sdk` et `@blackcube/lighter-sdk`. L'**invariant** : mêmes **scopes**, mêmes **noms**,
+même **vocabulaire** et mêmes **formes de types** (`…Params` en entrée, types de sortie communs) d'un SDK à
+l'autre. Deux natures de **divergence assumée par conception**, toujours **annotées au cas par cas** dans les
+tableaux/sections :
 
 1. **Disponibilité par capacité** — un scope ou une méthode n'existe que si le DEX l'offre réellement
    (jamais de `throw « non supporté »` ; absences notées `*(absent : …)*`).
 2. **Narrowing de type par DEX** — quand une venue n'accepte qu'une partie d'une entrée, le **type** est
-   restreint à ce qu'elle supporte (le compilateur refuse le reste, aucun `throw` au runtime). Ex. : la route
-   de `transfer()` (Paradex = vers un sous-compte uniquement).
+   restreint à ce qu'elle supporte (le compilateur refuse le reste, aucun `throw` au runtime). Ex. : la/les
+   route(s) de `transfer()`, ou le `type` d'ordre de `place()`. Cf. la section concernée.
 
 > Les prix/quantités sont des **chaînes décimales** ; `xtras` porte le natif hors cœur (rien n'est jeté).
 
@@ -114,6 +114,7 @@ await dex.perp().cancelAll({ name: 'BTC-USD-PERP' }); // `cancelled` toujours `n
 |---|---|---|---|
 | `getBalances()` | — | `Promise<Balance[]>` | `IAccount` |
 | `withdraw(o)` | `WithdrawParams` | `Promise<Ack>` | `IAccount` |
+| `getSubAccounts()` | — | `Promise<SubAccount[]>` *(absent du scope commun Paradex ; Paradex l'expose via `dex.native.subAccounts().getList()`)* | — |
 | `armCancelAll(afterMs)` | `number` | `Promise<unknown>` | `IDeadManSwitch` |
 | `disarm()` | — | `Promise<unknown>` | `IDeadManSwitch` |
 
@@ -161,7 +162,77 @@ off();
 
 ---
 
-## Types de sortie communs
+## Types — entrées (Params)
 
-`Pair`, `Candle`, `OrderBook`/`OrderBookLevel`, `Price`, `FundingRate`, `Trade`, `Order`, `Position`,
-`UserTrade`, `Balance`, `SubAccount`, `Ack`. Tous portent un `xtras?` qui restitue le natif hors cœur.
+Les `startTime`/`endTime` sont des **datetime UTC** `"YYYY-MM-DD HH:MM:SS"` (C7). Le `kind` perp/spot
+**n'est pas** dans les params : il est porté par le scope (`dex.perp()` / `dex.spot()`).
+
+```ts
+interface CandlesParams  { name: string; interval: string; startTime?: string; endTime?: string; limit?: number }
+interface OrderBookParams{ name: string; limit?: number }
+interface TradesParams   { name: string; limit?: number }
+interface FundingParams  { name: string; startTime?: string; endTime?: string; limit?: number }
+interface SymbolParams   { name: string }
+
+interface PlaceOrderParams {
+  name: string; side: 'buy' | 'sell';
+  type: 'limit' | 'market' | 'stop' | 'stopMarket' | 'takeProfit' | 'takeProfitMarket';
+  size: string; price?: string; triggerPrice?: string;
+  tif?: 'gtc' | 'ioc' | 'fok' | 'alo'; reduceOnly?: boolean; clientId?: string;
+}
+interface CancelOrderParams { name: string; id?: string; clientId?: string }
+interface CancelAllParams   { name?: string } // `name` omis = tous les marchés
+interface EditOrderParams   { name: string; id?: string; clientId?: string; side: 'buy' | 'sell'; size: string; price?: string }
+interface LeverageParams    { name: string; leverage: number }
+interface MarginModeParams  { name: string; isolated: boolean }
+// Narrowing Paradex : transfert de collatéral USDC vers un sous-compte uniquement.
+interface TransferParams    { to: { subAccount: string }; amount: string }
+interface WithdrawParams    { amount: string; address?: string; asset?: string; [extra: string]: unknown }
+```
+
+## Types — sorties (Output)
+
+```ts
+type Side = 'buy' | 'sell';
+type MarketKind = 'perp' | 'spot';
+
+interface Pair { name: string; base: string; quote: string; kind: MarketKind; szDecimals: number;
+  maxLeverage?: number; tickSize?: string; stepSize?: string; minNotional?: string; status?: string; xtras?: Record<string, unknown> }
+
+interface Candle { t: number; T: number; s: string; i: string; o: string; c: string; h: string; l: string;
+  v: string; n: number; kind: MarketKind; qv: string | null; tbbv: string | null; tbqv: string | null; xtras?: Record<string, unknown> }
+
+interface OrderBookLevel { price: string; size: string; n: number | null }
+interface OrderBook { name: string; kind: MarketKind; bids: OrderBookLevel[]; asks: OrderBookLevel[]; time: number | null; xtras?: Record<string, unknown> }
+
+interface Price { name: string; kind: MarketKind; mark: string | null; oracle: string | null; mid: string | null;
+  bid: string | null; ask: string | null; last: string | null; funding: string | null; openInterest: string | null;
+  volume24h: string | null; prevDayPrice: string | null; time: number | null; xtras?: Record<string, unknown> }
+
+interface FundingRate { name: string; fundingRate: string; time: number; xtras?: Record<string, unknown> }
+
+interface Trade { price: string; size: string; side: Side | null; maker: boolean | null; time: number; id: number | null; xtras?: Record<string, unknown> }
+
+interface Order { name: string; kind: MarketKind; id: string; clientId: string | null; side: Side;
+  type: 'limit' | 'market' | 'stop' | 'stopMarket' | 'takeProfit' | 'takeProfitMarket' | 'trailingStop' | 'other';
+  price: string | null; size: string; filled: string;
+  status: 'open' | 'partiallyFilled' | 'filled' | 'canceled' | 'rejected' | 'expired' | 'other';
+  tif: 'gtc' | 'ioc' | 'fok' | 'alo' | null; reduceOnly: boolean | null; time: number; xtras?: Record<string, unknown> }
+
+interface Position { name: string; side: 'long' | 'short' | null; size: string; entryPrice: string | null;
+  markPrice: string | null; unrealizedPnl: string | null; leverage: number | null; liquidationPrice: string | null;
+  margin: string | null; xtras?: Record<string, unknown> }
+
+interface UserTrade { name: string; kind: MarketKind; id: string; orderId: string; side: Side; price: string; size: string;
+  fee: string; feeAsset: string | null; pnl: string | null; maker: boolean | null; time: number; xtras?: Record<string, unknown> }
+
+interface Balance { asset: string; total: string; available: string | null; usdValue: string | null; xtras?: Record<string, unknown> }
+
+interface SubAccount { address: string; xtras?: Record<string, unknown> }
+
+// Accusé d'une écriture signée sans retour plus riche (ex. `account().withdraw`) :
+// `ok` = action acceptée ; `xtras` = réponse native complète (rien jeté).
+interface Ack { ok: boolean; xtras: Record<string, unknown> }
+
+type Unsubscribe = () => void;
+```

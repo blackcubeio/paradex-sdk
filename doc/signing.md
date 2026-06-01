@@ -5,11 +5,11 @@ Starknet) avec la **clé Stark L2** du compte, en **JS pur** (`starknet` : `type
 `ec.starkCurve.sign`) — **pas de WASM**. L'accès aux endpoints privés se fait via un **JWT** obtenu en
 signant une requête d'auth.
 
-> ⚠️ **À VALIDER SUR TESTNET.** La mécanique cryptographique locale (hash SNIP-12 déterministe + signature
-> Stark) est testée (`tests/signing.test.ts`), et les **lectures publiques** sont validées sur mainnet réel.
-> En revanche, la conformité des **messages typés** au serveur Paradex (signature *acceptée* pour onboarding
-> / auth / ordre) **n'a pas pu être confrontée** au serveur faute de credentials. Ne pas considérer la
-> signature comme prouvée tant qu'un ordre testnet n'a pas été accepté.
+> ✅ **Validé sur testnet réel le 2026-06-01.** La signature SNIP-12 (lib `starknet`) est **acceptée par le
+> serveur Paradex testnet** : onboarding et auth (JWT) répondent `200`, un ordre `POST /orders` est accepté
+> (`status open`), et le cancel d'un ordre au repos est confirmé (compte funded, 100k USDC). Le `chainId`
+> SNIP-12 est lu via `GET /system/config`. La mécanique cryptographique locale reste couverte par
+> `tests/signing.test.ts`, et les **lectures publiques** sont validées sur mainnet réel.
 
 ## Le signer
 
@@ -72,8 +72,15 @@ renouvelé ~60 s avant expiration) et joint `Authorization: Bearer <jwt>`. Les h
 L'auth WS se fait via la méthode JSON-RPC `auth` (`{ method:'auth', params:{ bearer } }`) émise en premier
 et **réémise après reconnexion**. Le kill-switch `order.cancel_on_disconnect` passe par cette même socket.
 
-## Points restant à valider testnet
+## Statut & limites résiduelles
 
-- `starknet_chain_id` **testnet** + acceptation de la signature par le serveur (onboarding/auth/ordre).
-- Sérialisation exacte de la signature (`"[r,s]"` vs tableau JSON) selon la version d'API.
-- Routes/signature de `/transfers` (transfert sous-compte, retrait L1).
+Validé sur testnet réel le 2026-06-01 (onboarding/auth/ordre/cancel acceptés, cf. encart en tête) :
+`starknet_chain_id` testnet, acceptation de la signature par le serveur et sérialisation `"[r,s]"` sont
+confirmés sur le flux trading.
+
+Limites résiduelles honnêtes :
+
+- Routes/signature de `/transfers` (transfert sous-compte, retrait L1) : implémentées mais **non exercées
+  contre le serveur** dans ce cycle.
+- Comptes **v2 EVM-native** Paradex : **non implémentés** (dérivation L1→L2 hors SDK ; fournir directement
+  `l2PrivateKey`/`l2Address`).

@@ -21,8 +21,8 @@ export interface INativeAccount {
 
 /** Gestion des **sous-comptes** Paradex (`/subaccounts`, `on_behalf_of_account`). */
 export interface INativeSubAccounts {
-  /** Liste des sous-comptes (forme {@link import('../common/types').SubAccount}). */
-  list(): Promise<import('../common/types').SubAccount[]>;
+  /** Liste des sous-comptes (forme {@link import('../common/types').SubAccount}). Verbe aligné `getList`. */
+  getList(): Promise<import('../common/types').SubAccount[]>;
 }
 
 /** Capacités **signature / auth** Paradex (SNIP-12 + JWT). */

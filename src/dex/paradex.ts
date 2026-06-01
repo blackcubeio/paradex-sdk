@@ -521,7 +521,7 @@ class ParadexNativeAccount extends ParadexScope implements INativeAccount {
 
 /** Gestion des **sous-comptes**. */
 class ParadexNativeSubAccounts extends ParadexScope implements INativeSubAccounts {
-  public list(): Promise<SubAccount[]> {
+  public getList(): Promise<SubAccount[]> {
     return getSubAccounts(this.client, this.signed());
   }
 }

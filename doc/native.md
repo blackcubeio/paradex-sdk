@@ -37,10 +37,10 @@ Miroir natif de `account()`.
 
 | Méthode | Entrée | Sortie |
 |---|---|---|
-| `list()` | — | `Promise<SubAccount[]>` |
+| `getList()` | — | `Promise<SubAccount[]>` |
 
 ```ts
-const subs = await dex.native.subAccounts().list(); // GET /subaccounts
+const subs = await dex.native.subAccounts().getList(); // GET /subaccounts
 ```
 
 ## `native.signing(label?)` — `ISigning`
