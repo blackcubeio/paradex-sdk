@@ -13,6 +13,16 @@ import { secp256k1 } from '@noble/curves/secp256k1';
 export interface EnvCredentials {
   evmPrivateKey: `0x${string}`;
   evmAddress: `0x${string}`;
+  /**
+   * Compte L2 Starknet Paradex **réel et funded** de Philippe (testnet), tel que stocké dans
+   * `.env`. **Note factuelle (vérifiée réseau le 2026-06-01)** : dans ce `.env`,
+   * `WALLET_PARADEX_MAIN_PUBLIC_KEY` est l'**adresse du compte L2** (`/account.account`,
+   * `PARADEX-STARKNET-ACCOUNT`), **pas** la clé publique Stark. La paire (privKey, address) ci-dessous
+   * authentifie 200 sur `/auth` et le compte porte ~100 000 USDC de collatéral.
+   *
+   * `null` si les deux clés sont absentes (→ on retombe alors sur un compte dérivé éphémère).
+   */
+  fundedL2: { privateKey: `0x${string}`; address: `0x${string}` } | null;
 }
 
 /** Lit et parse `ParadexSdk/.env`. Renvoie `null` si absent ou clés manquantes (→ skip propre). */
@@ -41,7 +51,20 @@ export function loadEnv(): EnvCredentials | null {
   if (pk === undefined || addr === undefined || !pk.startsWith('0x')) {
     return null;
   }
-  return { evmPrivateKey: pk as `0x${string}`, evmAddress: addr as `0x${string}` };
+  const l2Priv = map.get('WALLET_PARADEX_MAIN_PRIVATE_KEY');
+  const l2Addr = map.get('WALLET_PARADEX_MAIN_PUBLIC_KEY');
+  const fundedL2 =
+    l2Priv !== undefined &&
+    l2Addr !== undefined &&
+    l2Priv.startsWith('0x') &&
+    l2Addr.startsWith('0x')
+      ? { privateKey: l2Priv as `0x${string}`, address: l2Addr as `0x${string}` }
+      : null;
+  return {
+    evmPrivateKey: pk as `0x${string}`,
+    evmAddress: addr as `0x${string}`,
+    fundedL2,
+  };
 }
 
 /**

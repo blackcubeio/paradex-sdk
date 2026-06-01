@@ -1,44 +1,73 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { Paradex, init, signerFromEthKey } from '../src/index';
+import { Paradex } from '../src/index';
 import type { Order, Signer } from '../src/index';
-import { loadEnv, randomEthPrivateKey } from './_env';
+import { type EnvCredentials, loadEnv } from './_env';
 
 /**
- * **Trading signé** contre le **vrai testnet Paradex** (aucun mock).
+ * **Trading signé** contre le **vrai testnet Paradex**, sur le **compte funded réel** de Philippe
+ * (aucun mock).
  *
- * Flux : dérivation L2 depuis une clé EVM éphémère → onboarding → JWT → **placement d'un ordre
- * limite POST_ONLY (ALO) loin du marché** (BTC-USD-PERP buy à ~50 % du mid) → le serveur doit
- * **accepter la signature SNIP-12 `Order`** (réponse avec `id`) → **annulation** (`DELETE
- * /orders/{id}`).
+ * Le `.env` fournit le compte L2 Starknet **déjà onboardé et approvisionné** (~100 000 USDC de
+ * collatéral testnet). On l'utilise **directement** (clé privée L2 + adresse du compte), **sans
+ * re-onboarding** : le wallet EVM parent est déjà lié à ce compte (un re-onboarding renverrait
+ * « Parent account … has been used to onboard a different account »).
  *
- * Non destructif : un seul ordre limite loin du marché, immédiatement annulé. Aucun retrait,
- * transfert, sous-compte. Skip propre si `ParadexSdk/.env` absent.
+ * ⚠️ Détail factuel du `.env` (vérifié réseau le 2026-06-01) : `WALLET_PARADEX_MAIN_PUBLIC_KEY` est
+ * l'**adresse du compte L2** (`/account.account`), **pas** la clé publique Stark. La paire
+ * (`WALLET_PARADEX_MAIN_PRIVATE_KEY`, `WALLET_PARADEX_MAIN_PUBLIC_KEY`) authentifie 200 sur `/auth`.
  *
- * NOTE FACTUELLE (compte frais, sans collatéral) : le serveur **accepte** l'ordre (status `NEW`,
- * `id` renvoyé → la signature `Order` est validée) puis le **ferme automatiquement** côté risque
- * (`NOT_ENOUGH_MARGIN`) car le compte est vide. L'`id` renvoyé prouve l'acceptation de la signature
- * — objectif du test. L'annulation est donc tolérante : succès **ou** ordre déjà fermé.
+ * Flux prouvé : `/auth` (JWT) → `/balance` montre du collatéral → **ordre limite POST_ONLY (ALO)
+ * loin du marché** (BTC-USD-PERP buy à ~50 % du mid) → l'ordre **reste au repos** (`/orders` →
+ * status `open`) → **annulation** (`DELETE /orders/{id}`) → `/orders` ne le contient plus.
+ *
+ * Non destructif : un seul ordre limite loin du marché (jamais exécutable car POST_ONLY à 50 % du
+ * mid), immédiatement annulé. Aucun retrait, transfert, sous-compte. Skip propre si `ParadexSdk/.env`
+ * absent ou sans compte funded.
  */
 
 const env = loadEnv();
-const run = env !== null ? describe : describe.skip;
+const funded = env?.fundedL2 ?? null;
+const run = funded !== null ? describe : describe.skip;
 
 const MARKET = 'BTC-USD-PERP';
-const SIZE = '0.01'; // notionnel ~ mid*0.01 ≥ min_notional (100 USD) à ~50 % du mid
+const SIZE = '0.01'; // notionnel ~ mid*0.01 ; ≥ min_notional à ~50 % du mid
 
-run('Paradex — trading signé (testnet réel)', () => {
+/** Construit le signer du compte funded réel à partir du `.env` (sans onboarding). */
+function fundedSigner(cred: NonNullable<EnvCredentials['fundedL2']>, evm: `0x${string}`): Signer {
+  return {
+    l2PrivateKey: cred.privateKey,
+    l2Address: cred.address,
+    network: 'testnet',
+    ethAddress: evm,
+  };
+}
+
+run('Paradex — trading signé sur le compte funded réel (testnet)', () => {
   let dex: Paradex;
-  let signer: Signer;
 
-  beforeAll(async () => {
-    const client = init();
-    signer = await signerFromEthKey(client, 'testnet', randomEthPrivateKey());
+  beforeAll(() => {
+    const credentials = env as EnvCredentials;
+    const signer = fundedSigner(
+      credentials.fundedL2 as NonNullable<EnvCredentials['fundedL2']>,
+      credentials.evmAddress,
+    );
     dex = new Paradex({ desk: signer }, { default: 'desk' });
-    await dex.native.signing().onboard();
+  });
+
+  it('auth + balance : le compte funded répond 200 et porte du collatéral', async () => {
+    const jwt = await dex.native.signing().getJwt();
+    expect(jwt.split('.').length).toBe(3); // JWT accepté
+
+    const balances = await dex.account().getBalances();
+    expect(Array.isArray(balances)).toBe(true);
+    const usdc = balances.find((b) => b.asset === 'USDC');
+    expect(usdc).toBeDefined();
+    // Compte funded : collatéral strictement positif (réel, lu sur le réseau).
+    expect(Number(usdc?.total ?? '0')).toBeGreaterThan(0);
   }, 30_000);
 
-  it('place un ordre ALO loin du marché : signature Order acceptée (id renvoyé), puis annulation', async () => {
-    // Prix loin du marché : 50 % du mid (BBO), arrondi au tick (0.1 → entier suffit).
+  it('place un ordre ALO loin du marché → OPEN au repos → cancel → absent', async () => {
+    // Prix loin du marché : 50 % du mid (BBO), arrondi à l'entier (tick BTC-USD-PERP = 0.1).
     const bbo = await dex.native.perp().getBbo({ name: MARKET });
     const bid = Number(bbo.bids[0]?.price ?? 0);
     const ask = Number(bbo.asks[0]?.price ?? 0);
@@ -52,30 +81,23 @@ run('Paradex — trading signé (testnet réel)', () => {
       type: 'limit',
       size: SIZE,
       price: farPrice,
-      tif: 'alo', // POST_ONLY
+      tif: 'alo', // POST_ONLY : ne croise jamais le marché, donc reste au repos.
     });
-
-    // Le serveur a accepté la signature SNIP-12 `Order` → un id d'ordre est renvoyé.
     expect(placed.id).toBeTruthy();
     expect(placed.name).toBe(MARKET);
     expect(placed.side).toBe('buy');
 
-    // Annulation : succès si l'ordre repose encore ; toléré s'il a déjà été fermé côté risque
-    // (compte frais sans collatéral → NOT_ENOUGH_MARGIN). Dans les deux cas la chaîne signée a
-    // fonctionné de bout en bout.
-    let cancelOk = false;
-    try {
-      await dex.perp().cancel({ name: MARKET, id: placed.id });
-      cancelOk = true;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      // Compte frais sans collatéral : l'ordre accepté (id renvoyé) est fermé côté risque avant
-      // l'annulation → message « could not find order id » / code ORDER_ID_NOT_FOUND.
-      cancelOk = /not\s*find|not.?found|ORDER_ID_NOT_FOUND/i.test(message);
-      if (!cancelOk) {
-        throw error;
-      }
-    }
-    expect(cancelOk).toBe(true);
+    // L'ordre **repose** : on le retrouve OPEN dans /orders (preuve qu'il n'a pas été fermé).
+    const opens = await dex.perp().getOpens({ name: MARKET });
+    const resting = opens.find((o) => o.id === placed.id);
+    expect(resting).toBeDefined();
+    expect(resting?.status).toBe('open');
+
+    // Annulation de l'ordre au repos.
+    await dex.perp().cancel({ name: MARKET, id: placed.id });
+
+    // Après annulation : l'ordre n'est plus dans les ordres ouverts.
+    const opensAfter = await dex.perp().getOpens({ name: MARKET });
+    expect(opensAfter.find((o) => o.id === placed.id)).toBeUndefined();
   }, 30_000);
 });
