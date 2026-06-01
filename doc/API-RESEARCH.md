@@ -80,11 +80,34 @@ Perp DEX sur **appchain Starknet** (Paradigm). Sources : docs.paradex.trade, SDK
 - Marchés : `symbol`/`base_currency`/`quote_currency`/`order_size_increment`/`price_tick_size`/
   `min_notional`/`asset_kind`.
 
-## À confirmer testnet (compte signé — pas de credentials pour l'instant)
-- `starknet_chain_id` **testnet** (littéral) + conformité du calcul `chainId` SNIP-12.
-- Structure exacte des messages typés `Constant`/`Request`/`Order`/`ModifyOrder` vs serveur (signature acceptée).
-- Forme des réponses signées : `/orders` (POST), `/positions`, `/balance`, `/fills`, `/funding/payments`,
-  `/orders-history`, `/account`, `/subaccounts`.
+## Confirmé sur testnet réel (2026-06-01, compte signé dérivé d'une clé EVM)
+- `starknet_chain_id` **testnet** = `PRIVATE_SN_POTC_SEPOLIA` ; `l1_chain_id` = `11155111` (Sepolia).
+- **Dérivation L2 (flux Starknet v1)** prouvée : la clé EVM signe l'EIP-712 « STARK Key »
+  (domaine `{name:"Paradex", version:"1", chainId:l1_chain_id}`, `Constant(string action)`,
+  `message:{action:"STARK Key"}`) → composante `r` → `grind_key` → clé Stark L2 ; adresse L2 =
+  `compute_address(class_hash=paraclear_account_proxy_hash, salt=pub, calldata=[paraclear_account_hash,
+  selector("initialize"), 2, pub, 0])`. (Implémenté dans `src/rest/eth-account.ts`.)
+- **Onboarding** `POST /onboarding` → **200**. Body `{ public_key }` = **clé publique Stark** (felt),
+  *pas* l'adresse. Headers `PARADEX-ETHEREUM-ACCOUNT`/`PARADEX-STARKNET-ACCOUNT`/`PARADEX-STARKNET-SIGNATURE`.
+  Idempotent **par compte L2** ; un wallet EVM ne peut onboarder qu'**un seul** compte L2 (sinon
+  `PARENT_ADDRESS_ALREADY_ONBOARDED`).
+- **Auth** `POST /auth` → **200** + `{ jwt_token }`. SNIP-12 `Request` (timestamp/expiration en **secondes**).
+- **Lectures privées** `GET /account` (champ `account`), `/balance` (`{results:[]}`), `/positions`
+  (`{results:[]}`) → **200** avec le Bearer JWT.
+- **Ordre** `POST /orders` → **201**, réponse `{ id, status:"NEW", market, side, type, size,
+  remaining_size, price, created_at, … }`. La signature `Order` (SNIP-12, side 1/2, size/price
+  quantifiés 8 déc., `signature`=`"[r,s]"`, `signature_timestamp`) est **acceptée**. `DELETE /orders/{id}`
+  = JWT seul (pas de signature). `min_notional` BTC-USD-PERP = 100 USD, `order_size_increment` 0.00001.
+
+## Deux familles de comptes Paradex (important)
+- **Starknet v1** (implémenté ici) : clé Stark dérivée (grind_key), proxy Cairo 0, signatures **SNIP-12**,
+  `/v1/onboarding`+`/v1/auth`, header `PARADEX-STARKNET-SIGNATURE`=`"[r,s]"`.
+- **EVM-native v2** (non implémenté) : la clé secp256k1 est utilisée **directement** (Argent v0.5.0
+  Cairo 1), `/v2/onboarding`+`/v2/auth`, **SIWE (EIP-191) `personal_sign`** via `PARADEX-EVM-SIGNATURE`
+  + `PARADEX-SIWE-MESSAGE`. Classe `paraclear_evm_account_hash`. Familles distinctes côté serveur.
+
+## À confirmer testnet (reste)
+- Forme des réponses signées : `/fills`, `/funding/payments`, `/orders-history`, `/subaccounts`.
 - Schéma `/transfers` (transfert sous-compte + retrait L1) — signature SNIP-12 dédiée éventuelle.
 - Channels WS exacts (klines, order_book feed/rate, markets_summary, orders/fills/positions) + `cancel_on_disconnect`.
 - Paths précis `/markets/settlement-price`, `/markets/impact`.

@@ -24,6 +24,17 @@ export type { InitOptions, ParadexClient } from './common/config';
 /** Configuration d'un signer (passé au constructeur) et réseau. */
 export type { Signer, Network } from './common/types';
 
+/**
+ * Dérivation **compte L2 Starknet** ← clé privée **EVM** (flux d'onboarding Paradex *v1*) :
+ * `signerFromEthKey` (Signer prêt à l'emploi) et `deriveL2Account` (détails : clé/adresse L2, clé
+ * publique Stark, adresse EVM parente). Asynchrones (lisent `GET /system/config`).
+ */
+export {
+  type DerivedL2Account,
+  deriveL2Account,
+  signerFromEthKey,
+} from './rest/eth-account';
+
 /** Types **de sortie** unifiés renvoyés par les méthodes de la façade. */
 export type {
   Balance,

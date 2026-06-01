@@ -1,3 +1,4 @@
+import { ec } from 'starknet';
 import type { ParadexClient } from '../common/config';
 import { type Headers, httpPost, resolveSigner } from './client';
 import {
@@ -26,7 +27,10 @@ const jwtCache = new Map<string, JwtEntry>();
 /**
  * **Onboarding** : enregistre le compte Starknet auprès de Paradex (`POST /onboarding`).
  * Idempotent côté serveur. Headers `PARADEX-STARKNET-ACCOUNT` + `PARADEX-STARKNET-SIGNATURE`,
- * body `{ public_key }`. ⚠️ signature SNIP-12 **à valider testnet**.
+ * body `{ public_key }` = **clé publique Stark** (felt) dérivée de la clé L2 — *pas* l'adresse du
+ * compte. Header `PARADEX-ETHEREUM-ACCOUNT` ajouté si l'adresse EVM parente est connue.
+ *
+ * **Validé testnet (2026-06-01)** : onboarding 200 sur un compte fraîchement dérivé d'une clé EVM.
  */
 export async function onboard(client: ParadexClient, label?: string): Promise<void> {
   const { signer } = resolveSigner(client, label);
@@ -37,11 +41,15 @@ export async function onboard(client: ParadexClient, label?: string): Promise<vo
     'PARADEX-STARKNET-ACCOUNT': signer.l2Address,
     'PARADEX-STARKNET-SIGNATURE': serializeSignature(signature),
   };
+  if (signer.ethAddress !== undefined) {
+    headers['PARADEX-ETHEREUM-ACCOUNT'] = signer.ethAddress;
+  }
+  const starkPublicKey = ec.starkCurve.getStarkKey(signer.l2PrivateKey);
   await httpPost<Record<string, never>>(
     client,
     signer.network,
     '/onboarding',
-    { public_key: signer.l2Address },
+    { public_key: starkPublicKey },
     headers,
   );
 }
@@ -51,7 +59,8 @@ export async function onboard(client: ParadexClient, label?: string): Promise<vo
  * du message `Request`. Headers `PARADEX-STARKNET-ACCOUNT`, `PARADEX-STARKNET-SIGNATURE`,
  * `PARADEX-TIMESTAMP`, `PARADEX-SIGNATURE-EXPIRATION`. Renvoie le `jwt_token`.
  *
- * ⚠️ Le flux complet (onboarding + signature) reste **à valider testnet**.
+ * **Validé testnet (2026-06-01)** : `/auth` renvoie `200` + `jwt_token`, accepté ensuite sur les
+ * endpoints privés. Cf. `tests/private-reads.testnet.test.ts`.
  */
 export async function getJwt(
   client: ParadexClient,

@@ -8,9 +8,10 @@ import {
   signOrder,
 } from '../src/rest/signing';
 
-// Mécanique de signature SNIP-12 (sans réseau). ⚠️ La conformité au serveur Paradex (structure
-// exacte des messages, calcul du chainId) reste À VALIDER SUR TESTNET — ces tests ne prouvent que
-// la mécanique cryptographique locale (hash déterministe + signature vérifiable).
+// Mécanique de signature SNIP-12 (sans réseau) : hash déterministe + signature vérifiable. La
+// conformité au serveur Paradex (structure des messages, chainId) est prouvée séparément sur le
+// VRAI testnet par tests/private-reads.testnet.test.ts et tests/trading.testnet.test.ts (onboarding
+// 200, /auth 200, lectures privées 200, POST /orders 201).
 
 // Clé Stark de test (déterministe ; PAS une vraie clé de compte).
 const PRIV = '0x1' as const;

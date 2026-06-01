@@ -4,7 +4,8 @@ import { httpDelete, resolveSigner } from './client';
 
 /**
  * Annule un ordre (`DELETE /orders/{id}` ou `DELETE /orders/by-client-id/{client_id}`). L'annulation
- * Paradex est authentifiée par JWT — **pas de signature SNIP-12** distincte (à confirmer testnet).
+ * Paradex est authentifiée par JWT — **pas de signature SNIP-12** distincte (confirmé testnet
+ * 2026-06-01 : `DELETE /orders/{id}` n'exige que le Bearer JWT).
  */
 export async function cancelOrder(
   client: ParadexClient,

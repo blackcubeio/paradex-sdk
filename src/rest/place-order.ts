@@ -52,7 +52,8 @@ export interface PlaceArgs {
  * envoie `signature` (`"[r,s]"`) + `signature_timestamp`. Renvoie l'{@link Order} unifié (la réponse
  * Paradex contient l'ordre créé).
  *
- * ⚠️ Signature Stark **à valider testnet**.
+ * **Validé testnet (2026-06-01)** : `POST /orders` accepte la signature `Order` (`201`, statut
+ * `NEW`, id renvoyé). Cf. `tests/trading.testnet.test.ts`.
  */
 export async function placeOrder(
   client: ParadexClient,

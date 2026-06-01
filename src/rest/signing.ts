@@ -7,10 +7,11 @@ import { httpGet } from './client';
  * Signature **SNIP-12** (typed data Starknet) + flux JWT/onboarding Paradex — **JS pur** via
  * `starknet` (`typedData.getMessageHash` + `ec.starkCurve.sign`), pas de WASM.
  *
- * ⚠️ **À VALIDER SUR TESTNET** : les structures typées (domaine, `Constant`/`Request`/`Order`) sont
- * codées d'après `doc/API-RESEARCH.md` et le SDK officiel `@paradex/sdk`/`paradex-py`, mais n'ont pas
- * encore été confrontées au serveur Paradex (pas de credentials). Le calcul du `chainId` (int des
- * octets ASCII de `starknet_chain_id` lu via `GET /system/config`) doit notamment être vérifié.
+ * **Validé sur testnet (2026-06-01)** : les structures typées (domaine `{Paradex, chainId, 1}`,
+ * `Constant`/`Request`/`Order`) et le `chainId` (encodage short-string de `starknet_chain_id` lu via
+ * `GET /system/config`) sont acceptés par le serveur Paradex — onboarding `200`, `/auth` `200`,
+ * lectures privées `200`, `POST /orders` `201` (`NEW`, id renvoyé). Cf.
+ * `tests/private-reads.testnet.test.ts` et `tests/trading.testnet.test.ts`.
  */
 
 // ── system/config (chainId SNIP-12) ───────────────────────────────────────────

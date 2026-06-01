@@ -26,6 +26,11 @@ export interface Signer {
   network: Network;
   /** Subkey optionnelle (clé Stark à scope réduit : trading oui, retrait/transfert non). */
   subkeyPrivateKey?: `0x${string}`;
+  /**
+   * Adresse EVM **parente** (`0x…`), connue quand le compte L2 est dérivé d'une clé EVM
+   * (cf. `signerFromEthKey`). Envoyée en header `PARADEX-ETHEREUM-ACCOUNT` à l'onboarding.
+   */
+  ethAddress?: `0x${string}`;
 }
 
 // ── Entrées (Params) — `kind` porté par le scope, pas dans les params ──
