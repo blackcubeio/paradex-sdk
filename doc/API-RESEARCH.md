@@ -71,7 +71,20 @@ Perp DEX sur **appchain Starknet** (Paradigm). Sources : docs.paradex.trade, SDK
   bridged_tokens, paraclear_decimals — **fetch au démarrage** (chainId SNIP-12 en dépend).
 - Sous-comptes (`/subaccounts`, `on_behalf_of_account`), vaults (`/vaults/*`), STP, RPI, recv_window.
 
-## À confirmer testnet
-- Ordre exact des colonnes OHLCV de `/markets/klines`.
-- Valeur littérale `starknet_chain_id` prod/testnet (fetch system/config).
+## Confirmé sur mainnet réel (2026-06-01, lectures publiques)
+- Colonnes `/markets/klines` = `[t, o, h, l, c, v]` (epoch ms ouverture + OHLC + volume).
+- `starknet_chain_id` **mainnet** = `PRIVATE_SN_PARACLEAR_MAINNET` (fetch system/config ; NE PAS hardcoder).
+- Enveloppe de liste = `{ results: [...] }` ; orderbook = `{ market, seq_no, last_updated_at, asks, bids }`
+  avec niveaux `[price, size]` ; summary = `mark_price`/`underlying_price`/`bid(_size)`/`ask(_size)`/
+  `last_traded_price`/`funding_rate`/`open_interest`/`volume_24h`/`created_at`.
+- Marchés : `symbol`/`base_currency`/`quote_currency`/`order_size_increment`/`price_tick_size`/
+  `min_notional`/`asset_kind`.
+
+## À confirmer testnet (compte signé — pas de credentials pour l'instant)
+- `starknet_chain_id` **testnet** (littéral) + conformité du calcul `chainId` SNIP-12.
+- Structure exacte des messages typés `Constant`/`Request`/`Order`/`ModifyOrder` vs serveur (signature acceptée).
+- Forme des réponses signées : `/orders` (POST), `/positions`, `/balance`, `/fills`, `/funding/payments`,
+  `/orders-history`, `/account`, `/subaccounts`.
+- Schéma `/transfers` (transfert sous-compte + retrait L1) — signature SNIP-12 dédiée éventuelle.
+- Channels WS exacts (klines, order_book feed/rate, markets_summary, orders/fills/positions) + `cancel_on_disconnect`.
 - Paths précis `/markets/settlement-price`, `/markets/impact`.
