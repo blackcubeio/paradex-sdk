@@ -59,7 +59,6 @@ import type {
   IProductAccount,
   IPublicTrades,
   IRealtime,
-  IRealtimeAllCandles,
   IRealtimePositions,
   ITrading,
   ITransfers,
@@ -372,7 +371,7 @@ class ParadexTransfers implements ITransfers {
 }
 
 /** Scope **temps réel** lié à un `label`, paramétré par `kind`. */
-class ParadexRealtime implements IRealtime, IRealtimePositions, IRealtimeAllCandles {
+class ParadexRealtime implements IRealtime, IRealtimePositions {
   constructor(
     private readonly ws: UnifiedWsClient,
     private readonly client: ParadexClient,
