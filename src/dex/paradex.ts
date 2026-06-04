@@ -59,6 +59,7 @@ import type {
   IProductAccount,
   IPublicTrades,
   IRealtime,
+  IRealtimeAllCandles,
   IRealtimePositions,
   ITrading,
   ITransfers,
@@ -371,7 +372,7 @@ class ParadexTransfers implements ITransfers {
 }
 
 /** Scope **temps réel** lié à un `label`, paramétré par `kind`. */
-class ParadexRealtime implements IRealtime, IRealtimePositions {
+class ParadexRealtime implements IRealtime, IRealtimePositions, IRealtimeAllCandles {
   constructor(
     private readonly ws: UnifiedWsClient,
     private readonly client: ParadexClient,
@@ -385,6 +386,46 @@ class ParadexRealtime implements IRealtime, IRealtimePositions {
       const jwt = await getJwt(this.client, this.label);
       this.ws.setBearer(jwt);
     }
+  }
+
+  // Bougies 1m de tout le marché en UNE souscription : on bucketise le flux de prix agrégé (subscribePrices) par
+  // symbole. close exact ; OHLC échantillonné ; volume non porté par le flux agrégé → 0. API uniforme sur les DEX.
+  public subscribeAllCandles(cb: (c: Candle) => void) {
+    const forming = new Map<string, { t: number; o: number; h: number; l: number; c: number }>();
+    return this.subscribePrices((prices) => {
+      const t = Math.floor(Date.now() / 60_000) * 60_000;
+      for (const p of prices) {
+        const px = Number(p.mid ?? p.last ?? p.mark ?? p.oracle);
+        if (!Number.isFinite(px)) {
+          continue;
+        }
+        let f = forming.get(p.name);
+        if (f === undefined || f.t !== t) {
+          f = { t, o: px, h: px, l: px, c: px };
+          forming.set(p.name, f);
+        } else {
+          f.h = Math.max(f.h, px);
+          f.l = Math.min(f.l, px);
+          f.c = px;
+        }
+        cb({
+          t: f.t,
+          T: f.t + 60_000,
+          s: p.name,
+          i: '1m',
+          o: String(f.o),
+          h: String(f.h),
+          l: String(f.l),
+          c: String(f.c),
+          v: '0',
+          n: 0,
+          kind: p.kind,
+          qv: null,
+          tbbv: null,
+          tbqv: null,
+        });
+      }
+    });
   }
 
   public subscribeCandles(query: { name: string; interval: string }, cb: (c: Candle) => void) {
