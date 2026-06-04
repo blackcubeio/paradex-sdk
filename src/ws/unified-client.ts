@@ -1,6 +1,5 @@
 import type { ParadexClient } from '../common/config';
 import type {
-  Candle,
   JsonValue,
   MarketKind,
   Order,
@@ -53,40 +52,6 @@ export class UnifiedWsClient {
   /** Accès au client brut (kill-switch / trading WS via `request`). */
   public raw(): ParadexWsClient {
     return this.ws;
-  }
-
-  /** Bougies temps réel — canal `klines.{m}.{resolution}` (forme à confirmer testnet). */
-  subscribeCandles(
-    name: string,
-    interval: string,
-    resolution: number,
-    intervalMs: number,
-    kind: MarketKind,
-    cb: (candle: Candle) => void,
-  ): Unsubscribe {
-    return this.ws.subscribe(`klines.${name}.${resolution}`, (msg) => {
-      const o = asObj(msg);
-      if (o === undefined) {
-        return;
-      }
-      cb({
-        t: Number(o.timestamp ?? o.t ?? 0),
-        T: Number(o.timestamp ?? o.t ?? 0) + intervalMs - 1,
-        s: name,
-        i: interval,
-        o: String(o.open ?? o.o ?? '0'),
-        c: String(o.close ?? o.c ?? '0'),
-        h: String(o.high ?? o.h ?? '0'),
-        l: String(o.low ?? o.l ?? '0'),
-        v: String(o.volume ?? o.v ?? '0'),
-        n: 0,
-        kind,
-        qv: null,
-        tbbv: null,
-        tbqv: null,
-        xtras: o,
-      });
-    });
   }
 
   /** Carnet temps réel — canal `order_book.{m}.snapshot@15@100ms` (snapshot complet). */
