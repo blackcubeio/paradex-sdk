@@ -428,15 +428,44 @@ class ParadexRealtime implements IRealtime, IRealtimePositions {
   }
 
   public subscribeCandles(query: { name: string; interval: string }, cb: (c: Candle) => void) {
-    const { resolution, intervalMs } = resolutionOf(query.interval);
-    return this.ws.subscribeCandles(
-      query.name,
-      query.interval,
-      resolution,
-      intervalMs,
-      this.kind,
-      cb,
-    );
+    // Paradex a retiré le canal WS `klines.*` (rejeté « invalid channel »). On reconstruit la bougie depuis le
+    // flux `trades` (canal vivant) : OHLCV RÉEL par bucket d'intervalle (open/close exacts, volume = somme des
+    // tailles). Émet la bougie EN COURS à chaque trade (l'appelant finalise au changement de bucket `t`).
+    const { intervalMs } = resolutionOf(query.interval);
+    let f: { t: number; o: number; h: number; l: number; c: number; v: number } | null = null;
+    return this.subscribeTrades({ name: query.name }, (trade) => {
+      const px = Number(trade.price);
+      if (!Number.isFinite(px)) {
+        return;
+      }
+      const sz = Number(trade.size);
+      const vol = Number.isFinite(sz) ? sz : 0;
+      const t = Math.floor(trade.time / intervalMs) * intervalMs;
+      if (f === null || f.t !== t) {
+        f = { t, o: px, h: px, l: px, c: px, v: vol };
+      } else {
+        f.h = Math.max(f.h, px);
+        f.l = Math.min(f.l, px);
+        f.c = px;
+        f.v += vol;
+      }
+      cb({
+        t: f.t,
+        T: f.t + intervalMs,
+        s: query.name,
+        i: query.interval,
+        o: String(f.o),
+        h: String(f.h),
+        l: String(f.l),
+        c: String(f.c),
+        v: String(f.v),
+        n: 0,
+        kind: this.kind,
+        qv: null,
+        tbbv: null,
+        tbqv: null,
+      });
+    });
   }
   public subscribeOrderBook(query: { name: string }, cb: (b: OrderBook) => void) {
     return this.ws.subscribeOrderBook(query.name, this.kind, cb);
