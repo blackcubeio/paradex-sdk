@@ -7,8 +7,10 @@ import type {
   Order,
   OrderBook,
   Pair,
+  PlaceProtectionParams,
   Position,
   Price,
+  ProtectionTp,
   Signer,
   SubAccount,
   Trade,
@@ -265,6 +267,69 @@ class ParadexMarket
   public async cancelAll(input: CancelAllParams): Promise<{ cancelled: number | null }> {
     await cancelAllOrders(this.client, this.signed(), input.name);
     return { cancelled: null };
+  }
+  // Protection d'une position : SL plein + N TPs partiels, tous reduce-only, posés en un lot (N
+  // `place` conditionnels — Paradex n'a pas d'endpoint batch). `side` = sens de la POSITION → ordres
+  // au sens OPPOSÉ. SL = `stopMarket`, TP = `takeProfitMarket` (conditionnels au prix de
+  // déclenchement, market : `price` ignoré côté signature — cf. place-order).
+  public placeProtection(input: PlaceProtectionParams): Promise<Order[]> {
+    const exit: 'buy' | 'sell' = input.side === 'buy' ? 'sell' : 'buy';
+    const legs: PlaceOrderParams[] = [
+      {
+        name: input.name,
+        side: exit,
+        type: 'stopMarket',
+        triggerPrice: input.sl.triggerPrice,
+        size: input.sl.size,
+        reduceOnly: true,
+      },
+      ...input.tps.map(
+        (tp: ProtectionTp): PlaceOrderParams => ({
+          name: input.name,
+          side: exit,
+          type: 'takeProfitMarket',
+          triggerPrice: tp.triggerPrice,
+          size: tp.size,
+          reduceOnly: true,
+        }),
+      ),
+    ];
+    return Promise.all(legs.map((leg) => this.place(leg)));
+  }
+  // Ouvre une position AVEC sa protection : l'entrée en tête, puis SL plein + N TPs reduce-only (Paradex n'a pas
+  // de lot atomique → legs successifs via `place`). `protection.side` = sens de la POSITION → protection au sens
+  // OPPOSÉ ; l'entrée porte son sens propre.
+  public createEntryWithProtection(
+    entry: PlaceOrderParams,
+    protection: PlaceProtectionParams,
+  ): Promise<Order[]> {
+    const exit: 'buy' | 'sell' = protection.side === 'buy' ? 'sell' : 'buy';
+    const legs: PlaceOrderParams[] = [
+      entry,
+      {
+        name: protection.name,
+        side: exit,
+        type: 'stopMarket',
+        triggerPrice: protection.sl.triggerPrice,
+        size: protection.sl.size,
+        reduceOnly: true,
+      },
+      ...protection.tps.map(
+        (tp: ProtectionTp): PlaceOrderParams => ({
+          name: protection.name,
+          side: exit,
+          type: 'takeProfitMarket',
+          triggerPrice: tp.triggerPrice,
+          size: tp.size,
+          reduceOnly: true,
+        }),
+      ),
+    ];
+    return Promise.all(legs.map((leg) => this.place(leg)));
+  }
+  // Annule toute la protection de la paire (conditionnels reduce-only) avant de la re-poser.
+  public cancelProtection(input: { name: string }): Promise<void> {
+    return this.cancelAll({ name: input.name }).then(() => undefined);
   }
   public edit(input: EditOrderParams): Promise<{ name: string; id: string }> {
     if (input.id === undefined) {
