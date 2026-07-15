@@ -1,6 +1,6 @@
 {
   "name": "@blackcube/paradex-sdk",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "TypeScript SDK for the Paradex exchange (perpetuals DEX on a Starknet appchain): REST v1, WebSocket JSON-RPC, SNIP-12 Stark signing + JWT auth",
   "license": "BSD-3-Clause",
   "author": "Blackcube (https://blackcube.io)",
